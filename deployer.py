@@ -14,6 +14,7 @@ async def main():
     # Loading .env file
     load_dotenv()
     private_key = int(os.environ.get("TESTNET_PRIVATE_KEY"))
+    evm_public_key = int(os.environ.get("TESTNET_PRIVATE_KEY"))
     account_address = int(os.environ.get("TESTNET_ACCOUNT_ADDRESS"), 16)
 
     testnet = "testnet"
@@ -40,8 +41,7 @@ async def main():
     )
     await declare_result.wait_for_acceptance()
     print("Account Declared")
-    # ADD YOUR EVM PUBLIC KEY AS ARGUMENT
-    deploy_result = await declare_result.deploy(max_fee=int(1e16), constructor_args=[])
+    deploy_result = await declare_result.deploy(max_fee=int(1e16), constructor_args=[evm_public_key])
     # Wait until deployment transaction is accepted
     await deploy_result.wait_for_acceptance()
 
