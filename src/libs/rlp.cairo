@@ -12,7 +12,7 @@ from starkware.cairo.common.pow import pow
 from starkware.cairo.common.cairo_builtins import HashBuiltin, BitwiseBuiltin
 from starkware.cairo.common.math import unsigned_div_rem
 from starkware.cairo.common.uint256 import word_reverse_endian
-from utils import Helpers
+from src.libs.utils import Helpers
 
 // The namespace handling all RLP computation
 namespace RLP {

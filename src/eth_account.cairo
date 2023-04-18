@@ -4,15 +4,16 @@
 %lang starknet
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin, BitwiseBuiltin
 from starkware.starknet.common.syscalls import get_tx_info
+from starkware.cairo.common.bool import TRUE
 from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.alloc import alloc
-from starkware.cairo.common.cairo_secp.signature import recover_public_key
-from starkware.cairo.common.cairo_secp.ec import EcPointfrom 
+from starkware.cairo.common.cairo_secp.signature import (finalize_keccak, recover_public_key, public_key_point_to_eth_address)
+from starkware.cairo.common.cairo_secp.ec import EcPoint 
 from starkware.cairo.common.cairo_secp.bigint import (BigInt3, uint256_to_bigint)
 
-from library import Account, AccountCallArray
-from eth_transaction import EthTransaction
-from utils import Helpers
+from src.libs.library import Account, AccountCallArray
+from src.libs.eth_transaction import EthTransaction
+from src.libs.utils import Helpers
 
 struct Signature {
     s: Uint256,
@@ -70,7 +71,6 @@ func supportsInterface{
 func get_txHash{
     syscall_ptr: felt*,
     pedersen_ptr: HashBuiltin*,
-    ecdsa_ptr: SignatureBuiltin*,
     bitwise_ptr: BitwiseBuiltin*,
     range_check_ptr
 }(
@@ -184,6 +184,7 @@ func __validate__{
     calldata_len: felt,
     calldata: felt*
 ) {
+    alloc_locals;
     // Exctract needed calldata in the following order
     // calldata:
     // nonce
@@ -195,14 +196,14 @@ func __validate__{
     // -----
 
     // Format Signature
-    let (r: Uint256) = Uint256(low=calldata[0], high=calldata[1]);
-    let (s: Uint256) = Uint256(low=calldata[2], high=calldata[3]);
-    let (v: felt) = calldata[4];
-    let (r_bigint: BigInt3) = uint256_to_bigint(r);
-    let (s_bigint: BigInt3) = uint256_to_bigint(s);
+    let r: Uint256 = Uint256(low=calldata[0], high=calldata[1]);
+    let s: Uint256 = Uint256(low=calldata[2], high=calldata[3]);
+    let v: felt = calldata[4];
+    let (local r_bigint: BigInt3) = uint256_to_bigint(r);
+    let (local s_bigint: BigInt3) = uint256_to_bigint(s);
 
     // data to be hased starts at index 5
-    let (data: felt*) = calldata + 5;
+    let data: felt* = calldata + 5;
 
     // Build tx_hash
     let (hash: Uint256) = get_txHash(calldata_len-5,data);
@@ -210,7 +211,12 @@ func __validate__{
 
     // Recover public key
     let (public_key_point: EcPoint) = recover_public_key(msg_hash, r_bigint, s_bigint, v);
-    let (eth_address: felt) = public_key_point_to_eth_address(public_key_point);
+    let (keccak_ptr: felt*) = alloc();
+    local keccak_ptr_start: felt* = keccak_ptr;
+    with keccak_ptr {
+        let (eth_address: felt) = public_key_point_to_eth_address(public_key_point);
+    }
+    finalize_keccak(keccak_ptr_start=keccak_ptr_start, keccak_ptr_end=keccak_ptr);
 
     // Check if public key is valid
     let (is_valid: felt) = public_keys.read(eth_address);

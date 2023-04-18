@@ -11,8 +11,8 @@ from starkware.cairo.common.math_cmp import is_not_zero, is_le
 from starkware.cairo.common.memcpy import memcpy
 from starkware.cairo.common.uint256 import Uint256
 
-from rlp import RLP
-from utils import Helpers
+from src.libs.rlp import RLP
+from src.libs.utils import Helpers
 
 // @title EthTransaction utils
 // @notice This file contains utils for decoding eth transactions

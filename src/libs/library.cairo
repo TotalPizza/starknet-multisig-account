@@ -22,7 +22,7 @@ from starkware.cairo.common.cairo_secp.signature import (
     finalize_keccak,
     verify_eth_signature_uint256
 )
-from constants import (
+from src.libs.constants import (
     IACCOUNT_ID,
     IERC165_ID,
     TRANSACTION_VERSION
@@ -173,26 +173,15 @@ namespace Account {
         return (is_valid=TRUE);
     }
 
-    // @notice Executes the tx for each call.
-    // @dev Recursively executes each call.
-    // @param call_array_len The length of the call_array
-    // @param call_array An array containing all the calls of the transaction see: https://docs.openzeppelin.com/contracts-cairo/0.6.0/accounts#call_and_accountcallarray_format
-    // @param calldata_len The length of the Calldata array
-    // @param calldata The calldata
-    // @param response The returned bytes array see /kakaort/library.cairo
-    // @return response_len The length of the returned bytes
     func execute{
         syscall_ptr: felt*,
         pedersen_ptr: HashBuiltin*,
+        ecdsa_ptr: SignatureBuiltin*,
         bitwise_ptr: BitwiseBuiltin*,
         range_check_ptr,
-    }(
-        call_array_len: felt,
-        call_array: CallArray*,
-        calldata_len: felt,
-        calldata: felt*,
-        response: felt*,
-    ) -> (response_len: felt) {
+    }(call_array_len: felt, call_array: AccountCallArray*, calldata_len: felt, calldata: felt*) -> (
+        response_len: felt, response: felt*
+    ) {
         alloc_locals;
 
         let (tx_info) = get_tx_info();
