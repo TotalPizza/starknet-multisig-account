@@ -194,40 +194,29 @@ namespace Account {
         response: felt*,
     ) -> (response_len: felt) {
         alloc_locals;
-        if (call_array_len == 0) {
-            return (response_len=0);
+
+        let (tx_info) = get_tx_info();
+        // Disallow deprecated tx versions
+        with_attr error_message("Account: deprecated tx version") {
+            assert is_le_felt(TRANSACTION_VERSION, tx_info.version) = TRUE;
         }
 
-        let (
-            gas_price, gas_limit, destination, amount, payload_len, payload, tx_hash, v, r, s
-        ) = EthTransaction.decode([call_array].data_len, calldata + [call_array].data_offset);
+        // Assert not a reentrant call
+        let (caller) = get_caller_address();
+        with_attr error_message("Account: reentrant call") {
+            assert caller = 0;
+        }
 
-        let res = call_contract(
-            contract_address=destination,
-            function_selector=this_call.selector,
-            calldata_size=this_call.calldata_len,
-            calldata=this_call.calldata,
-        );
+        // TMP: Convert `AccountCallArray` to 'Call'.
+        let (calls: Call*) = alloc();
+        _from_call_array_to_call(call_array_len, call_array, calldata, calls);
+        let calls_len = call_array_len;
 
-        let (return_data_len, return_data) = IKakarot.eth_send_transaction(
-            contract_address=_kakarot_address,
-            to=destination,
-            gas_limit=gas_limit,
-            gas_price=gas_price,
-            value=amount,
-            data_len=payload_len,
-            data=payload,
-        );
-        memcpy(response, return_data, return_data_len);
+        // Execute call
+        let (response: felt*) = alloc();
+        let (response_len) = _execute_list(calls_len, calls, response);
 
-        let (response_len) = execute(
-            call_array_len - 1,
-            call_array + CallArray.SIZE,
-            calldata_len,
-            calldata,
-            response + return_data_len,
-        );
-        return (response_len=return_data_len + response_len);
+        return (response_len=response_len, response=response);
     }
 
     func _execute_list{syscall_ptr: felt*}(calls_len: felt, calls: Call*, response: felt*) -> (

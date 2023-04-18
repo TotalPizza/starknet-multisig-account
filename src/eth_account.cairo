@@ -6,7 +6,9 @@ from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin,
 from starkware.starknet.common.syscalls import get_tx_info
 from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.alloc import alloc
-    from starkware.cairo.common.cairo_secp.signature import recover_public_key
+from starkware.cairo.common.cairo_secp.signature import recover_public_key
+from starkware.cairo.common.cairo_secp.ec import EcPointfrom 
+from starkware.cairo.common.cairo_secp.bigint import (BigInt3, uint256_to_bigint)
 
 from library import Account, AccountCallArray
 from eth_transaction import EthTransaction
@@ -17,6 +19,15 @@ struct Signature {
     r: Uint256,
     v: felt,
 }
+
+//
+// Storage
+//
+
+@storage_var
+func public_keys(key: felt) -> (is_valid: felt) {
+}
+
 
 //
 // Constructor
@@ -68,16 +79,10 @@ func get_txHash{
 ) -> (
     hash: Uint256,
 ) {
-    // First calldata entries are the signatures
-    // The rest is encoded calldata + txInfo
-    alloc_locals;
-
     // Decode calldata and generate txHash
     let hash:Uint256 = EthTransaction.hash_tx(calldata_len, calldata);
     
     return (hash=hash);
-    
-    // Verify all signatures
 }
 
 @view
@@ -179,10 +184,37 @@ func __validate__{
     calldata_len: felt,
     calldata: felt*
 ) {
-    // Build tx_hash
+    // Exctract needed calldata in the following order
+    // calldata:
+    // nonce
+    // chainID
+    // ----- recursive
+    // to_address
+    // selector
+    // parameters
+    // -----
 
-    // Recover Public keys
-    // recover_public_key()
+    // Format Signature
+    let (r: Uint256) = Uint256(low=calldata[0], high=calldata[1]);
+    let (s: Uint256) = Uint256(low=calldata[2], high=calldata[3]);
+    let (v: felt) = calldata[4];
+    let (r_bigint: BigInt3) = uint256_to_bigint(r);
+    let (s_bigint: BigInt3) = uint256_to_bigint(s);
+
+    // data to be hased starts at index 5
+    let (data: felt*) = calldata + 5;
+
+    // Build tx_hash
+    let (hash: Uint256) = get_txHash(calldata_len-5,data);
+    let (msg_hash: BigInt3) = uint256_to_bigint(hash);
+
+    // Recover public key
+    let (public_key_point: EcPoint) = recover_public_key(msg_hash, r_bigint, s_bigint, v);
+    let (eth_address: felt) = public_key_point_to_eth_address(public_key_point);
+
+    // Check if public key is valid
+    let (is_valid: felt) = public_keys.read(eth_address);
+    assert is_valid = TRUE;
     return ();
 }
 
@@ -214,6 +246,10 @@ func __execute__{
     response_len: felt,
     response: felt*
 ) {
+    // There is a voulnerability here as we are asuming that the AccountCallArray was set correct by the realyer.
+    let calldata = calldata + 9;
+    let calldata_len = calldata_len - 9;
+    
     let (response_len, response) = Account.execute(
         call_array_len, call_array, calldata_len, calldata
     );
