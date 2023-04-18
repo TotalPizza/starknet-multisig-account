@@ -107,10 +107,6 @@
     {
         "inputs": [
             {
-                "name": "address",
-                "type": "felt"
-            },
-            {
                 "name": "calldata_len",
                 "type": "felt"
             },

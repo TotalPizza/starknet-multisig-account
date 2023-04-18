@@ -85,7 +85,6 @@ func get_is_valid{
     bitwise_ptr: BitwiseBuiltin*,
     range_check_ptr
 }(
-    address: felt,
     calldata_len: felt,
     calldata: felt*,
 ) -> (
@@ -95,10 +94,33 @@ func get_is_valid{
     // The rest is encoded calldata + txInfo
     alloc_locals;
 
-    // Decode calldata and generate txHash
-    EthTransaction.validate(address, calldata_len, calldata);
+    let r: Uint256 = Uint256(low=calldata[0], high=calldata[1]);
+    let s: Uint256 = Uint256(low=calldata[2], high=calldata[3]);
+    let v: felt = calldata[4];
+    let (local r_bigint: BigInt3) = uint256_to_bigint(r);
+    let (local s_bigint: BigInt3) = uint256_to_bigint(s);
+
+    // data to be hased starts at index 5
+    let data: felt* = calldata + 5;
+
+    // Build tx_hash
+    let (hash: Uint256) = get_txHash(calldata_len-5,data);
+    let (msg_hash: BigInt3) = uint256_to_bigint(hash);
+
+    // Recover public key
+    let (public_key_point: EcPoint) = recover_public_key(msg_hash, r_bigint, s_bigint, v);
+    let (keccak_ptr: felt*) = alloc();
+    local keccak_ptr_start: felt* = keccak_ptr;
+    with keccak_ptr {
+        let (eth_address: felt) = public_key_point_to_eth_address(public_key_point);
+    }
+    finalize_keccak(keccak_ptr_start=keccak_ptr_start, keccak_ptr_end=keccak_ptr);
+
+    // Check if public key is valid
+    let (public_key) = Account.get_public_key();
+    assert public_key = eth_address;
     
-    return (is_valid=1);
+    return (is_valid=TRUE);
 }
 
 @view
