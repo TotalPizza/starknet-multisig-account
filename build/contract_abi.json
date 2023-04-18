@@ -189,17 +189,6 @@
     {
         "inputs": [
             {
-                "name": "newEthAddress",
-                "type": "felt"
-            }
-        ],
-        "name": "setEthAddress",
-        "outputs": [],
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
                 "name": "hash",
                 "type": "felt"
             },

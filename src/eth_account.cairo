@@ -21,14 +21,6 @@ struct Signature {
     v: felt,
 }
 
-//
-// Storage
-//
-
-@storage_var
-func public_keys(key: felt) -> (is_valid: felt) {
-}
-
 
 //
 // Constructor
@@ -140,20 +132,6 @@ func get_validate_data{
 }
 
 //
-// Setters
-//
-
-@external
-func setEthAddress{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-} (newEthAddress: felt) {
-    Account.set_public_key(newEthAddress);
-    return ();
-}
-
-//
 // Business logic
 //
 
@@ -219,8 +197,8 @@ func __validate__{
     finalize_keccak(keccak_ptr_start=keccak_ptr_start, keccak_ptr_end=keccak_ptr);
 
     // Check if public key is valid
-    let (is_valid: felt) = public_keys.read(eth_address);
-    assert is_valid = TRUE;
+    let (public_key) = Account.get_public_key();
+    assert public_key = eth_address;
     return ();
 }
 
