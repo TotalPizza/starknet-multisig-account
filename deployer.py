@@ -40,7 +40,8 @@ async def main():
     )
     await declare_result.wait_for_acceptance()
     print("Account Declared")
-    deploy_result = await declare_result.deploy(max_fee=int(1e16), constructor_args=[976518600784351150277378723527274978474354991497])
+    # ADD YOUR EVM PUBLIC KEY AS ARGUMENT
+    deploy_result = await declare_result.deploy(max_fee=int(1e16), constructor_args=[])
     # Wait until deployment transaction is accepted
     await deploy_result.wait_for_acceptance()
 
