@@ -14,7 +14,7 @@ async def main():
     # Loading .env file
     load_dotenv()
     private_key = int(os.environ.get("TESTNET_PRIVATE_KEY"))
-    evm_public_key = int(os.environ.get("TESTNET_PRIVATE_KEY"))
+    evm_public_key = int(os.environ.get("EVM_PUBLIC_KEY"))
     account_address = int(os.environ.get("TESTNET_ACCOUNT_ADDRESS"), 16)
 
     testnet = "testnet"

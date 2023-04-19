@@ -91,7 +91,7 @@
             },
             {
                 "name": "calldata",
-                "type": "felt*"
+                "type": "Uint256*"
             }
         ],
         "name": "get_txHash",
@@ -112,7 +112,7 @@
             },
             {
                 "name": "calldata",
-                "type": "felt*"
+                "type": "Uint256*"
             }
         ],
         "name": "get_is_valid",

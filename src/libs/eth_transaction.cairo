@@ -5,7 +5,7 @@
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.bool import TRUE, FALSE
 from starkware.cairo.common.cairo_builtins import BitwiseBuiltin, HashBuiltin
-from starkware.cairo.common.cairo_keccak.keccak import finalize_keccak, cairo_keccak_bigend
+from starkware.cairo.common.cairo_keccak.keccak import finalize_keccak, cairo_keccak_bigend,cairo_keccak_uint256s_bigend
 from starkware.cairo.common.cairo_secp.signature import verify_eth_signature_uint256
 from starkware.cairo.common.math_cmp import is_not_zero, is_le
 from starkware.cairo.common.memcpy import memcpy
@@ -168,14 +168,6 @@ namespace EthTransaction {
     }(tx_data_len: felt, tx_data: felt*) -> Uint256 {
         alloc_locals;
 
-        let (local items: RLP.Item*) = alloc();
-        RLP.decode(tx_data_len, tx_data, items);
-
-        let (local signed_data: felt*) = alloc();
-        let (rlp_len) = RLP.encode_list(
-            [items].data_len, [items].data, signed_data
-        );
-
         let (local words: felt*) = alloc();
         let (keccak_ptr: felt*) = alloc();
         let keccak_ptr_start = keccak_ptr;
@@ -185,16 +177,33 @@ namespace EthTransaction {
             // > Same as keccak, but outputs the hash in big endian representation.
             // > Note that the input is still treated as little endian.
             Helpers.bytes_to_bytes8_little_endian(
-                bytes_len=rlp_len,
-                bytes=signed_data,
+                bytes_len=tx_data_len,
+                bytes=tx_data,
                 index=0,
-                size=rlp_len,
+                size=tx_data_len,
                 bytes8=0,
                 bytes8_shift=0,
                 dest=words,
                 dest_index=0,
             );
-            let (tx_hash) = cairo_keccak_bigend(inputs=words, n_bytes=rlp_len);
+            let (tx_hash) = cairo_keccak_bigend(inputs=words, n_bytes=tx_data_len);
+        }
+        finalize_keccak(keccak_ptr_start, keccak_ptr);
+        return tx_hash;
+    }
+
+    func hash_tx_uint256{
+        syscall_ptr: felt*,
+        pedersen_ptr: HashBuiltin*,
+        bitwise_ptr: BitwiseBuiltin*,
+        range_check_ptr,
+    }(tx_data_len: felt, tx_data: Uint256*) -> Uint256 {
+        alloc_locals;
+
+        let (keccak_ptr: felt*) = alloc();
+        let keccak_ptr_start = keccak_ptr;
+        with keccak_ptr {
+            let (tx_hash) = cairo_keccak_uint256s_bigend{keccak_ptr=keccak_ptr}(n_elements=tx_data_len, elements=tx_data);
         }
         finalize_keccak(keccak_ptr_start, keccak_ptr);
         return tx_hash;

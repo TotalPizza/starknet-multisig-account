@@ -8,6 +8,7 @@ from starkware.cairo.common.bool import TRUE
 from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.cairo_secp.signature import (finalize_keccak, recover_public_key, public_key_point_to_eth_address)
+from starkware.cairo.common.memcpy import memcpy
 from starkware.cairo.common.cairo_secp.ec import EcPoint 
 from starkware.cairo.common.cairo_secp.bigint import (BigInt3, uint256_to_bigint)
 
@@ -21,6 +22,14 @@ struct Signature {
     v: felt,
 }
 
+// keccak256("EIP721Domain(uint256 chainId)")
+const DOMAIN_SEPERATOR_HASH_LOW = 0xba5e16e2572a92aef568063c963e3465;
+const DOMAIN_SEPERATOR_HASH_HIGH = 0xc49a8e302e3e5d6753b2bb3dbc3c28de;
+
+
+// keccak256("Multisig(uint256 contract)")
+const MULTISIG_SEPERATOR_HASH_LOW = 0x1e70057de8419df606e90f3d2802477d;
+const MULTISIG_SEPERATOR_HASH_HIGH = 0x3227741035c53b2285142fc436453f7b;
 
 //
 // Constructor
@@ -67,14 +76,36 @@ func get_txHash{
     range_check_ptr
 }(
     calldata_len: felt,
-    calldata: felt*,
+    calldata: Uint256*,
 ) -> (
     hash: Uint256,
 ) {
-    // Decode calldata and generate txHash
-    let hash:Uint256 = EthTransaction.hash_tx(calldata_len, calldata);
+    alloc_locals;
+
+    let (new_calldata: Uint256*) = alloc();
+    assert new_calldata[0] = Uint256(low=MULTISIG_SEPERATOR_HASH_LOW,high=MULTISIG_SEPERATOR_HASH_HIGH);
+    memcpy(new_calldata+1, calldata, calldata_len);
     
-    return (hash=hash);
+    let hash:Uint256 = EthTransaction.hash_tx_uint256(calldata_len+1, new_calldata);
+
+    let (hash_bytes: felt*) = alloc();
+    let (hash_bytes_reverse: felt*) = alloc();
+    let (hash_bytes_len: felt) = Helpers.uint256_to_bytes_no_padding(hash, 0, hash_bytes_reverse, hash_bytes);
+
+
+    let (domain_bytes: felt*) = alloc();
+    let (domain_bytes_reverse: felt*) = alloc();
+    let domain: Uint256 = Uint256(low=DOMAIN_SEPERATOR_HASH_LOW,high=DOMAIN_SEPERATOR_HASH_HIGH);
+    let (domain_bytes_len: felt) = Helpers.uint256_to_bytes_no_padding(domain, 0, domain_bytes_reverse, domain_bytes);
+
+    let (second_round_data: felt*) = alloc();
+    assert second_round_data[0] = 0x19;
+    assert second_round_data[1] = 0x01;
+    memcpy(second_round_data+2, hash_bytes, hash_bytes_len);
+    memcpy(second_round_data+2+hash_bytes_len, domain_bytes, domain_bytes_len);
+    let final_hash:Uint256 = EthTransaction.hash_tx(2+hash_bytes_len+domain_bytes_len, second_round_data);
+
+    return (hash=final_hash);
 }
 
 @view
@@ -86,7 +117,7 @@ func get_is_valid{
     range_check_ptr
 }(
     calldata_len: felt,
-    calldata: felt*,
+    calldata: Uint256*,
 ) -> (
     is_valid: felt,
 ) {
@@ -94,17 +125,17 @@ func get_is_valid{
     // The rest is encoded calldata + txInfo
     alloc_locals;
 
-    let r: Uint256 = Uint256(low=calldata[0], high=calldata[1]);
-    let s: Uint256 = Uint256(low=calldata[2], high=calldata[3]);
-    let v: felt = calldata[4];
+    let r: Uint256 = calldata[0];
+    let s: Uint256 = calldata[1];
+    let v: felt = calldata[2].low;
     let (local r_bigint: BigInt3) = uint256_to_bigint(r);
     let (local s_bigint: BigInt3) = uint256_to_bigint(s);
 
-    // data to be hased starts at index 5
-    let data: felt* = calldata + 5;
+    // data to be hased starts at index 3
+    let data: Uint256* = calldata + 3;
 
     // Build tx_hash
-    let (hash: Uint256) = get_txHash(calldata_len-5,data);
+    let hash: Uint256 = EthTransaction.hash_tx_uint256(calldata_len-3,data);
     let (msg_hash: BigInt3) = uint256_to_bigint(hash);
 
     // Recover public key
@@ -206,7 +237,7 @@ func __validate__{
     let data: felt* = calldata + 5;
 
     // Build tx_hash
-    let (hash: Uint256) = get_txHash(calldata_len-5,data);
+    let hash: Uint256 = EthTransaction.hash_tx(calldata_len-5,data);
     let (msg_hash: BigInt3) = uint256_to_bigint(hash);
 
     // Recover public key
