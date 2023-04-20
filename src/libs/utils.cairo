@@ -748,6 +748,41 @@ namespace Helpers {
         return little_res;
     }
 
+    // @notice transform a felt array to little endian bytes
+    // @param felts_len The length of the felt array
+    // @param felts The pointer to the felt array
+    // @param bytes_len The number of bytes (used for recursion, set to 0)
+    // @param bytes The pointer to the bytes
+    // @return bytes_len The final length of the bytes array
+    func felts_to_bytes{range_check_ptr}(felts_len: felt,felts: felt*, bytes_len: felt, bytes: felt*) -> (bytes_len: felt){
+        alloc_locals;
+        if (felts_len == 0) {
+            return (bytes_len=bytes_len);
+        }
+        //transform felt to uint256
+        let uint_val = to_uint256(felts[0]);
+        %{
+            #print("THE FELT")
+            #print(ids.uint_val.low)
+            #print(ids.uint_val.high)
+        %}
+        //transform uint256 to bytes
+        let (bytes_array_len, bytes_array) = uint256_to_bytes_array(uint_val);
+        
+        //let x = bytes_array[0];
+        //let x1 = bytes_array[1];
+        //let x2 = bytes_array[2];
+        %{
+            #print("THE BYTES")
+            #print(ids.x)
+            #print(ids.x1)
+            #print(ids.x2)
+        %}
+        //append to existing bytes array
+        memcpy(bytes+bytes_len,bytes_array,bytes_array_len);
+        return felts_to_bytes(felts_len-1,felts+1,bytes_len+bytes_array_len,bytes);
+    }
+
     // @notice transform multiple bytes into a single felt
     // @param data_len The length of the bytes
     // @param data The pointer to the bytes array

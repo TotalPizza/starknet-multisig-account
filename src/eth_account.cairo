@@ -22,13 +22,13 @@ struct Signature {
     v: felt,
 }
 
-// keccak256("EIP721Domain(uint256 chainId)")
-const DOMAIN_SEPERATOR_HASH_LOW = 0xba5e16e2572a92aef568063c963e3465;
-const DOMAIN_SEPERATOR_HASH_HIGH = 0xc49a8e302e3e5d6753b2bb3dbc3c28de;
+// keccak256("EIP721Domain(uint256 chainId,uint256 nonce)")
+const DOMAIN_SEPERATOR_HASH_LOW = 0x4932da39f68138c5b61ba2ead9e51af8;
+const DOMAIN_SEPERATOR_HASH_HIGH = 0x72eac018d284da434adea590f44cc2b9;
 
-// keccak256("Multisig(uint256 contract)")
-const MULTISIG_SEPERATOR_HASH_LOW = 0x1e70057de8419df606e90f3d2802477d;
-const MULTISIG_SEPERATOR_HASH_HIGH = 0x3227741035c53b2285142fc436453f7b;
+// keccak256("Multisig(uint256 contract,uint256 selector,bytes calldata)")
+const MULTISIG_SEPERATOR_HASH_LOW = 0x7db002d92d5940cb2eaf4670b0363cb;
+const MULTISIG_SEPERATOR_HASH_HIGH = 0xc365f8b08d8eedec231a8d5d15766955;
 
 const CHAIN_ID = 1263227476;
 
@@ -77,25 +77,50 @@ func get_txHash{
     range_check_ptr
 }(
     calldata_len: felt,
-    calldata: Uint256*,
+    calldata: felt*,
+    chain_id: Uint256,
+    nonce: Uint256,
 ) -> (
     hash: Uint256,
 ) {
     alloc_locals;
 
-    let (new_calldata: Uint256*) = alloc();
-    assert new_calldata[0] = Uint256(low=MULTISIG_SEPERATOR_HASH_LOW,high=MULTISIG_SEPERATOR_HASH_HIGH);
-    memcpy(new_calldata+2, calldata, calldata_len*2);
+    let multisig_hash = Uint256(low=MULTISIG_SEPERATOR_HASH_LOW,high=MULTISIG_SEPERATOR_HASH_HIGH);
+    //uint256 to bytes
+    let (multisig_bytes_len: felt, multisig_bytes: felt*) = Helpers.uint256_to_bytes_array(multisig_hash);
+    //calldata to bytes
+    let (calldata_bytes: felt*) = alloc();
+    let (calldata_bytes_len: felt) = Helpers.felts_to_bytes(calldata_len,calldata,0,calldata_bytes);
+    //keccak the calldata
+    let calldata_hash: Uint256 = EthTransaction.hash_tx(calldata_bytes_len,calldata_bytes);
+    %{
+        print(ids.calldata_hash.low)
+        print(ids.calldata_hash.high)
+    %}
+    //turn back into bytes
+    let (hash_bytes_len: felt, hash_bytes: felt*) = Helpers.uint256_to_bytes_array(calldata_hash);
+    //append calldata bytes to multisig bytes
+    memcpy(multisig_bytes+multisig_bytes_len, hash_bytes, hash_bytes_len);
     
-    let hash:Uint256 = EthTransaction.hash_tx_uint256(calldata_len+1, new_calldata);
+    //keccak hash the new bytes array 
+    let hash:Uint256 = EthTransaction.hash_tx(multisig_bytes_len+hash_bytes_len, multisig_bytes);
 
     // Create domain Hash
     let (domain_hashing_data: Uint256*) = alloc();
     let domain: Uint256 = Uint256(low=DOMAIN_SEPERATOR_HASH_LOW,high=DOMAIN_SEPERATOR_HASH_HIGH);
     assert domain_hashing_data[0] = domain;
-    assert domain_hashing_data[1] = Uint256(low=CHAIN_ID,high=0);
-    let domain_hash:Uint256 = EthTransaction.hash_tx_uint256(2, domain_hashing_data);
-    
+    assert domain_hashing_data[1] = chain_id;
+    assert domain_hashing_data[2] = nonce;
+    let domain_hash:Uint256 = EthTransaction.hash_tx_uint256(3, domain_hashing_data);
+
+    %{
+        print(ids.hash.low)
+        print(ids.hash.high)
+
+        print(ids.domain_hash.low)
+        print(ids.domain_hash.high)
+    %}
+
     // Convert domain hash to byte array
     let (domain_bytes_len: felt, domain_bytes: felt*) = Helpers.uint256_to_bytes_array(domain_hash);
 
@@ -122,8 +147,10 @@ func get_is_valid{
     bitwise_ptr: BitwiseBuiltin*,
     range_check_ptr
 }(
+    metadata_len: felt,
+    metadata: Uint256*,
     calldata_len: felt,
-    calldata: Uint256*,
+    calldata: felt*,
 ) -> (
     is_valid: felt,
 ) {
@@ -131,17 +158,17 @@ func get_is_valid{
     // The rest is encoded calldata + txInfo
     alloc_locals;
 
-    let r: Uint256 = calldata[0];
-    let s: Uint256 = calldata[1];
-    let v: felt = calldata[2].low;
+    let r: Uint256 = metadata[0];
+    let s: Uint256 = metadata[1];
+    let v: felt = metadata[2].low;
     let (local r_bigint: BigInt3) = uint256_to_bigint(r);
     let (local s_bigint: BigInt3) = uint256_to_bigint(s);
 
-    // data to be hased starts at index 3
-    let data: Uint256* = calldata + 6;
+    let chain_id: Uint256 = metadata[3];
+    let nonce: Uint256 = metadata[4];
 
     // Build tx_hash
-    let hash: Uint256 = get_txHash(calldata_len-3,data);
+    let hash: Uint256 = get_txHash(calldata_len,calldata,chain_id,nonce);
     let (msg_hash: BigInt3) = uint256_to_bigint(hash);
 
     // Recover public key
