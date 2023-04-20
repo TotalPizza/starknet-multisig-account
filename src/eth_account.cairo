@@ -26,10 +26,11 @@ struct Signature {
 const DOMAIN_SEPERATOR_HASH_LOW = 0xba5e16e2572a92aef568063c963e3465;
 const DOMAIN_SEPERATOR_HASH_HIGH = 0xc49a8e302e3e5d6753b2bb3dbc3c28de;
 
-
 // keccak256("Multisig(uint256 contract)")
 const MULTISIG_SEPERATOR_HASH_LOW = 0x1e70057de8419df606e90f3d2802477d;
 const MULTISIG_SEPERATOR_HASH_HIGH = 0x3227741035c53b2285142fc436453f7b;
+
+const CHAIN_ID = 1263227476;
 
 //
 // Constructor
@@ -84,25 +85,30 @@ func get_txHash{
 
     let (new_calldata: Uint256*) = alloc();
     assert new_calldata[0] = Uint256(low=MULTISIG_SEPERATOR_HASH_LOW,high=MULTISIG_SEPERATOR_HASH_HIGH);
-    memcpy(new_calldata+1, calldata, calldata_len);
+    memcpy(new_calldata+2, calldata, calldata_len*2);
     
     let hash:Uint256 = EthTransaction.hash_tx_uint256(calldata_len+1, new_calldata);
 
-    let (hash_bytes: felt*) = alloc();
-    let (hash_bytes_reverse: felt*) = alloc();
-    let (hash_bytes_len: felt) = Helpers.uint256_to_bytes_no_padding(hash, 0, hash_bytes_reverse, hash_bytes);
-
-
-    let (domain_bytes: felt*) = alloc();
-    let (domain_bytes_reverse: felt*) = alloc();
+    // Create domain Hash
+    let (domain_hashing_data: Uint256*) = alloc();
     let domain: Uint256 = Uint256(low=DOMAIN_SEPERATOR_HASH_LOW,high=DOMAIN_SEPERATOR_HASH_HIGH);
-    let (domain_bytes_len: felt) = Helpers.uint256_to_bytes_no_padding(domain, 0, domain_bytes_reverse, domain_bytes);
+    assert domain_hashing_data[0] = domain;
+    assert domain_hashing_data[1] = Uint256(low=CHAIN_ID,high=0);
+    let domain_hash:Uint256 = EthTransaction.hash_tx_uint256(2, domain_hashing_data);
+    
+    // Convert domain hash to byte array
+    let (domain_bytes_len: felt, domain_bytes: felt*) = Helpers.uint256_to_bytes_array(domain_hash);
 
+    // Convert payload hash to byte array
+    let (hash_bytes_len: felt, hash_bytes: felt*) = Helpers.uint256_to_bytes_array(hash);
+
+    // Create final hash
     let (second_round_data: felt*) = alloc();
     assert second_round_data[0] = 0x19;
     assert second_round_data[1] = 0x01;
-    memcpy(second_round_data+2, hash_bytes, hash_bytes_len);
-    memcpy(second_round_data+2+hash_bytes_len, domain_bytes, domain_bytes_len);
+    memcpy(second_round_data+2, domain_bytes, domain_bytes_len);
+    memcpy(second_round_data+2+domain_bytes_len, hash_bytes, hash_bytes_len);
+
     let final_hash:Uint256 = EthTransaction.hash_tx(2+hash_bytes_len+domain_bytes_len, second_round_data);
 
     return (hash=final_hash);
@@ -132,10 +138,10 @@ func get_is_valid{
     let (local s_bigint: BigInt3) = uint256_to_bigint(s);
 
     // data to be hased starts at index 3
-    let data: Uint256* = calldata + 3;
+    let data: Uint256* = calldata + 6;
 
     // Build tx_hash
-    let hash: Uint256 = EthTransaction.hash_tx_uint256(calldata_len-3,data);
+    let hash: Uint256 = get_txHash(calldata_len-3,data);
     let (msg_hash: BigInt3) = uint256_to_bigint(hash);
 
     // Recover public key

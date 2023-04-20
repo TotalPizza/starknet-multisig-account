@@ -200,6 +200,12 @@ namespace EthTransaction {
     }(tx_data_len: felt, tx_data: Uint256*) -> Uint256 {
         alloc_locals;
 
+        %{
+            #for i in range(0, ids.tx_data_len):
+            #    print(ids.tx_data[i].low)
+            #    print(ids.tx_data[i].high)
+        %}
+
         let (keccak_ptr: felt*) = alloc();
         let keccak_ptr_start = keccak_ptr;
         with keccak_ptr {
