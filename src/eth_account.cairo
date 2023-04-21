@@ -91,12 +91,21 @@ func get_txHash{
     //calldata to bytes
     let (calldata_bytes: felt*) = alloc();
     let (calldata_bytes_len: felt) = Helpers.felts_to_bytes(calldata_len,calldata,0,calldata_bytes);
+    
+    //let x = calldata_bytes[0];
+    //let x1 = calldata_bytes[1];
+    //let x2 = calldata_bytes[2];
+    //let x3 = calldata_bytes[3];
+    %{
+        #print(ids.x)
+        #print(ids.x1)
+        #print(ids.x2)
+        #print(ids.x3)
+    %}
+
     //keccak the calldata
     let calldata_hash: Uint256 = EthTransaction.hash_tx(calldata_bytes_len,calldata_bytes);
-    %{
-        print(ids.calldata_hash.low)
-        print(ids.calldata_hash.high)
-    %}
+    
     //turn back into bytes
     let (hash_bytes_len: felt, hash_bytes: felt*) = Helpers.uint256_to_bytes_array(calldata_hash);
     //append calldata bytes to multisig bytes
@@ -104,7 +113,7 @@ func get_txHash{
     
     //keccak hash the new bytes array 
     let hash:Uint256 = EthTransaction.hash_tx(multisig_bytes_len+hash_bytes_len, multisig_bytes);
-
+    
     // Create domain Hash
     let (domain_hashing_data: Uint256*) = alloc();
     let domain: Uint256 = Uint256(low=DOMAIN_SEPERATOR_HASH_LOW,high=DOMAIN_SEPERATOR_HASH_HIGH);
@@ -112,14 +121,6 @@ func get_txHash{
     assert domain_hashing_data[1] = chain_id;
     assert domain_hashing_data[2] = nonce;
     let domain_hash:Uint256 = EthTransaction.hash_tx_uint256(3, domain_hashing_data);
-
-    %{
-        print(ids.hash.low)
-        print(ids.hash.high)
-
-        print(ids.domain_hash.low)
-        print(ids.domain_hash.high)
-    %}
 
     // Convert domain hash to byte array
     let (domain_bytes_len: felt, domain_bytes: felt*) = Helpers.uint256_to_bytes_array(domain_hash);
@@ -135,7 +136,7 @@ func get_txHash{
     memcpy(second_round_data+2+domain_bytes_len, hash_bytes, hash_bytes_len);
 
     let final_hash:Uint256 = EthTransaction.hash_tx(2+hash_bytes_len+domain_bytes_len, second_round_data);
-
+    
     return (hash=final_hash);
 }
 
@@ -170,6 +171,10 @@ func get_is_valid{
     // Build tx_hash
     let hash: Uint256 = get_txHash(calldata_len,calldata,chain_id,nonce);
     let (msg_hash: BigInt3) = uint256_to_bigint(hash);
+    %{
+        print(ids.hash.low)
+        print(ids.hash.high)
+    %}
 
     // Recover public key
     let (public_key_point: EcPoint) = recover_public_key(msg_hash, r_bigint, s_bigint, v);

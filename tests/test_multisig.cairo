@@ -27,7 +27,7 @@ func test_multisig_contract{syscall_ptr: felt*, range_check_ptr}() {
     %{      
         #from dotenv import load_dotenv
         #load_dotenv()
-        evm_public_key = //
+        evm_public_key = 976518600784351150277378723527274978474354991497
         ids.public_key_0 = evm_public_key
         context.public_key_0 = evm_public_key
     %}
@@ -37,12 +37,13 @@ func test_multisig_contract{syscall_ptr: felt*, range_check_ptr}() {
     %{ ids.contract_address = deploy_contract("./src/eth_account.cairo", [ids.public_key_0]).contract_address %}
 
     let (metadata: Uint256*) = alloc();
-    assert metadata[0] = Uint256(low=0x34d0d30ad7d927bbe68f711a03467ec0,high=0x16a7a1586f0bb379c73526d449b66f15); // s 
-    assert metadata[1] = Uint256(low=0x7bed23efa39e69f8cd6e9a403a41de34,high=0x392d56c39f634a055df95c099973a30e); // r
+    
+    assert metadata[0] = Uint256(low=0xb15eff774d18e3b7ae22419981d8fc1,high=0xd1e026201489e4662db0914b06726867); // r 
+    assert metadata[1] = Uint256(low=0x450fb1159f48e6829e1939799e26132c,high=0x1b7f02f9f5f8610a9b29bdabbdb7f714); // s
     assert metadata[2] = Uint256(low=0,high=0); // v
     assert metadata[3] = Uint256(low=1263227476,high=0); // chainID
     assert metadata[4] = Uint256(low=9,high=0); // nonce
-
+    
     let (calldata: felt*) = alloc();
     assert calldata[0] = 0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7; // to
     assert calldata[1] = 0x83afd3f4caedc6eebf44246fe54e38c95e3179a5ec9ea81740eca5b482d12e; // selector

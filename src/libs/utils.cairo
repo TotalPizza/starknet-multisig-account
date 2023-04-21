@@ -761,23 +761,10 @@ namespace Helpers {
         }
         //transform felt to uint256
         let uint_val = to_uint256(felts[0]);
-        %{
-            #print("THE FELT")
-            #print(ids.uint_val.low)
-            #print(ids.uint_val.high)
-        %}
+        
         //transform uint256 to bytes
         let (bytes_array_len, bytes_array) = uint256_to_bytes_array(uint_val);
-        
-        //let x = bytes_array[0];
-        //let x1 = bytes_array[1];
-        //let x2 = bytes_array[2];
-        %{
-            #print("THE BYTES")
-            #print(ids.x)
-            #print(ids.x1)
-            #print(ids.x2)
-        %}
+
         //append to existing bytes array
         memcpy(bytes+bytes_len,bytes_array,bytes_array_len);
         return felts_to_bytes(felts_len-1,felts+1,bytes_len+bytes_array_len,bytes);
