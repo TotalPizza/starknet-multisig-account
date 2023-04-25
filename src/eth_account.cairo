@@ -26,9 +26,9 @@ struct Signature {
 const DOMAIN_SEPERATOR_HASH_LOW = 0x4932da39f68138c5b61ba2ead9e51af8;
 const DOMAIN_SEPERATOR_HASH_HIGH = 0x72eac018d284da434adea590f44cc2b9;
 
-// keccak256("Multisig(uint256 contract,uint256 selector,bytes calldata)")
-const MULTISIG_SEPERATOR_HASH_LOW = 0x7db002d92d5940cb2eaf4670b0363cb;
-const MULTISIG_SEPERATOR_HASH_HIGH = 0xc365f8b08d8eedec231a8d5d15766955;
+// keccak256("Multisig(uint256 contract,uint256 selector,uint256 calldata)")
+const MULTISIG_SEPERATOR_HASH_LOW = 0x366b4895cb339571d62391825cea5ede;
+const MULTISIG_SEPERATOR_HASH_HIGH = 0x11d222136956321a6a25eadea8608c69;
 
 const CHAIN_ID = 1263227476;
 
@@ -90,29 +90,27 @@ func get_txHash{
     let (multisig_bytes_len: felt, multisig_bytes: felt*) = Helpers.uint256_to_bytes_array(multisig_hash);
     //calldata to bytes
     let (calldata_bytes: felt*) = alloc();
-    let (calldata_bytes_len: felt) = Helpers.felts_to_bytes(calldata_len,calldata,0,calldata_bytes);
-    
-    //let x = calldata_bytes[0];
-    //let x1 = calldata_bytes[1];
-    //let x2 = calldata_bytes[2];
-    //let x3 = calldata_bytes[3];
-    %{
-        #print(ids.x)
-        #print(ids.x1)
-        #print(ids.x2)
-        #print(ids.x3)
-    %}
-
-    //keccak the calldata
+    let (calldata_bytes_len: felt) = Helpers.felts_to_bytes(calldata_len-2,calldata+2,0,calldata_bytes);
     let calldata_hash: Uint256 = EthTransaction.hash_tx(calldata_bytes_len,calldata_bytes);
+
+    //append calldata hash to selector and to address
+    let (total_calldata: felt*) = alloc();
+    assert total_calldata[0] = calldata[0];
+    assert total_calldata[1] = calldata[1];
     
-    //turn back into bytes
+    //Create bytes array of selector and to address
+    let (total_calldata_bytes: felt*) = alloc();
+    let (total_calldata_bytes_len: felt) = Helpers.felts_to_bytes(2,total_calldata,0,total_calldata_bytes);
+
+    // convert calldata hash to bytes
     let (hash_bytes_len: felt, hash_bytes: felt*) = Helpers.uint256_to_bytes_array(calldata_hash);
+    memcpy(total_calldata_bytes+total_calldata_bytes_len, hash_bytes, hash_bytes_len);
+
     //append calldata bytes to multisig bytes
-    memcpy(multisig_bytes+multisig_bytes_len, hash_bytes, hash_bytes_len);
+    memcpy(multisig_bytes+multisig_bytes_len, total_calldata_bytes, hash_bytes_len+total_calldata_bytes_len);
     
     //keccak hash the new bytes array 
-    let hash:Uint256 = EthTransaction.hash_tx(multisig_bytes_len+hash_bytes_len, multisig_bytes);
+    let hash:Uint256 = EthTransaction.hash_tx(multisig_bytes_len+hash_bytes_len+total_calldata_bytes_len, multisig_bytes);
     
     // Create domain Hash
     let (domain_hashing_data: Uint256*) = alloc();
@@ -136,7 +134,7 @@ func get_txHash{
     memcpy(second_round_data+2+domain_bytes_len, hash_bytes, hash_bytes_len);
 
     let final_hash:Uint256 = EthTransaction.hash_tx(2+hash_bytes_len+domain_bytes_len, second_round_data);
-    
+
     return (hash=final_hash);
 }
 
@@ -171,10 +169,6 @@ func get_is_valid{
     // Build tx_hash
     let hash: Uint256 = get_txHash(calldata_len,calldata,chain_id,nonce);
     let (msg_hash: BigInt3) = uint256_to_bigint(hash);
-    %{
-        print(ids.hash.low)
-        print(ids.hash.high)
-    %}
 
     // Recover public key
     let (public_key_point: EcPoint) = recover_public_key(msg_hash, r_bigint, s_bigint, v);
@@ -242,10 +236,23 @@ func isValidSignature{
 }
 
 @external
+func __validate_declare__{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    bitwise_ptr: BitwiseBuiltin*,
+    range_check_ptr,
+} (class_hash: felt) {
+    let (tx_info) = get_tx_info();
+    Account.is_valid_eth_signature(tx_info.transaction_hash, tx_info.signature_len, tx_info.signature);
+    return ();
+}
+
+@external
 func __validate__{
     syscall_ptr: felt*,
     pedersen_ptr: HashBuiltin*,
     bitwise_ptr: BitwiseBuiltin*,
+    ecdsa_ptr: SignatureBuiltin*,
     range_check_ptr,
 }(
     call_array_len: felt,
@@ -255,53 +262,38 @@ func __validate__{
 ) {
     alloc_locals;
     // Exctract needed calldata in the following order
-    // calldata:
-    // nonce
+    // signature
     // chainID
+    // nonce
     // ----- recursive
     // to_address
     // selector
     // parameters
     // -----
 
-    // Format Signature
-    let r: Uint256 = Uint256(low=calldata[0], high=calldata[1]);
-    let s: Uint256 = Uint256(low=calldata[2], high=calldata[3]);
-    let v: felt = calldata[4];
-    let (local r_bigint: BigInt3) = uint256_to_bigint(r);
-    let (local s_bigint: BigInt3) = uint256_to_bigint(s);
 
-    // data to be hased starts at index 5
-    let data: felt* = calldata + 5;
-
-    // Build tx_hash
-    let hash: Uint256 = EthTransaction.hash_tx(calldata_len-5,data);
-    let (msg_hash: BigInt3) = uint256_to_bigint(hash);
-
-    // Recover public key
-    let (public_key_point: EcPoint) = recover_public_key(msg_hash, r_bigint, s_bigint, v);
-    let (keccak_ptr: felt*) = alloc();
-    local keccak_ptr_start: felt* = keccak_ptr;
-    with keccak_ptr {
-        let (eth_address: felt) = public_key_point_to_eth_address(public_key_point);
-    }
-    finalize_keccak(keccak_ptr_start=keccak_ptr_start, keccak_ptr_end=keccak_ptr);
-
-    // Check if public key is valid
-    let (public_key) = Account.get_public_key();
-    assert public_key = eth_address;
-    return ();
-}
-
-@external
-func __validate_declare__{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    bitwise_ptr: BitwiseBuiltin*,
-    range_check_ptr,
-} (class_hash: felt) {
+    // !!! DOES NOT HANDLE MULTICAL !!!
+    
+    // Transform signature, nonce and chainID to uint256
+    let (metadata: Uint256*) = alloc();
+    assert metadata[0] = Uint256(low=calldata[0],high=calldata[1]); 
+    assert metadata[1] = Uint256(low=calldata[2],high=calldata[3]);
+    // starknet keccak lib requires 0 or 1 instead of 27 or 28
+    let v: felt = calldata[4] - 27; 
+    assert metadata[2] = Uint256(low=v,high=0);
+    // Check that provded ChainID and Nonce are correct
+    assert calldata[5] = CHAIN_ID;
     let (tx_info) = get_tx_info();
-    Account.is_valid_eth_signature(tx_info.transaction_hash, tx_info.signature_len, tx_info.signature);
+    assert calldata[6] = tx_info.nonce;
+    // Add them to the metadata
+    assert metadata[3] = Uint256(low=CHAIN_ID,high=0);
+    assert metadata[4] = Uint256(low=calldata[6],high=0);
+
+    // Check that the signature is valid
+    let (calldata: felt*) = alloc();
+    let calldata = calldata+7;
+    get_is_valid(7,metadata,calldata_len-7,calldata);
+
     return ();
 }
 
@@ -321,9 +313,8 @@ func __execute__{
     response_len: felt,
     response: felt*
 ) {
-    // There is a voulnerability here as we are asuming that the AccountCallArray was set correct by the realyer.
-    let calldata = calldata + 9;
-    let calldata_len = calldata_len - 9;
+    let calldata = calldata + 7;
+    let calldata_len = calldata_len - 7;
     
     let (response_len, response) = Account.execute(
         call_array_len, call_array, calldata_len, calldata

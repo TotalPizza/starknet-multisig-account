@@ -764,7 +764,7 @@ namespace Helpers {
         
         //transform uint256 to bytes
         let (bytes_array_len, bytes_array) = uint256_to_bytes_array(uint_val);
-
+        
         //append to existing bytes array
         memcpy(bytes+bytes_len,bytes_array,bytes_array_len);
         return felts_to_bytes(felts_len-1,felts+1,bytes_len+bytes_array_len,bytes);
