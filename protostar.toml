@@ -3,5 +3,5 @@ protostar-version = "0.9.1"
 lib-path = "lib"
 
 [contracts]
-main = ["src/eth_account.cairo"]
+contract_compiled = ["src/eth_account.cairo"]
 

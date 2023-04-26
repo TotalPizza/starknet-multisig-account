@@ -271,7 +271,6 @@ func __validate__{
     // parameters
     // -----
 
-
     // !!! DOES NOT HANDLE MULTICAL !!!
     
     // Transform signature, nonce and chainID to uint256
@@ -286,13 +285,13 @@ func __validate__{
     let (tx_info) = get_tx_info();
     assert calldata[6] = tx_info.nonce;
     // Add them to the metadata
-    assert metadata[3] = Uint256(low=CHAIN_ID,high=0);
+    assert metadata[3] = Uint256(low=calldata[5],high=0);
     assert metadata[4] = Uint256(low=calldata[6],high=0);
 
     // Check that the signature is valid
     let (calldata: felt*) = alloc();
     let calldata = calldata+7;
-    get_is_valid(7,metadata,calldata_len-7,calldata);
+    get_is_valid(5,metadata,calldata_len-7,calldata);
 
     return ();
 }
@@ -313,8 +312,8 @@ func __execute__{
     response_len: felt,
     response: felt*
 ) {
-    let calldata = calldata + 7;
-    let calldata_len = calldata_len - 7;
+    let calldata = calldata + 9;
+    let calldata_len = calldata_len - 9;
     
     let (response_len, response) = Account.execute(
         call_array_len, call_array, calldata_len, calldata

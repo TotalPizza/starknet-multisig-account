@@ -35,15 +35,15 @@ func test_multisig_contract{syscall_ptr: felt*, range_check_ptr}() {
     %{ ids.contract_address = deploy_contract("./src/eth_account.cairo", [ids.public_key_0]).contract_address %}
 
     let (metadata: Uint256*) = alloc();
-    
+
     // Signature
-    assert metadata[0] = Uint256(low=0x9e2fdab43f0833e39940e8e28e62678a,high=0x67b5175180046bf182e7bcd7389b14d9); // r 
-    assert metadata[1] = Uint256(low=0x3c88e649d8a42bb7473b38b8146eb708,high=0x5be2211b39dc95c6f3265201de980ca1); // s
+    assert metadata[0] = Uint256(low=0xee41b2ab8b91fea058d9c8737126f4cf,high=0xf93d5f00e39fefd8a7b19eecfd5a5dc); // r 
+    assert metadata[1] = Uint256(low=0x687efb1a72bcb9a83953ce39dc9aeb5a,high=0x11e2dadfdf5026cf928b0def904d2ad6); // s
     assert metadata[2] = Uint256(low=1,high=0); // v
     
     // Metadata
     assert metadata[3] = Uint256(low=1263227476,high=0); // chainID
-    assert metadata[4] = Uint256(low=9,high=0); // nonce
+    assert metadata[4] = Uint256(low=0,high=0); // nonce
     
     let (calldata: felt*) = alloc();
     assert calldata[0] = 0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7; // to
